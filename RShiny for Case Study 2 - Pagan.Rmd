@@ -1,0 +1,119 @@
+---
+title: "RShiny Case Study 2"
+author: "Max Pagan"
+date: "2023-12-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+suppressPackageStartupMessages(library(shiny))
+suppressPackageStartupMessages(library(ggplot2))
+suppressWarnings(library(dplyr))
+
+```
+
+
+```{r shiny, echo=FALSE}
+
+data <- read.csv("CaseStudy2-data copy 2.csv")
+data <- data[, !colnames(data) %in% c("Over18")]
+data <- data[, !colnames(data) %in% c("EmployeeCount")]
+data <- data[, !colnames(data) %in% c("StandardHours")]
+
+# Function to calculate the ratio of standard deviations
+calculate_sd_ratio <- function(data, variable) {
+  sd_yes <- sd(data[data$Attrition == "Yes", variable], na.rm = TRUE)
+  sd_no <- sd(data[data$Attrition == "No", variable], na.rm = TRUE)
+  sd_ratio <- sd_yes / sd_no
+  return(sd_ratio)
+}
+
+# Define UI
+ui <- fluidPage(
+  titlePanel("Attrition Analysis with T-test"),
+  sidebarLayout(
+    sidebarPanel(
+      # Dropdown menu for selecting Y-axis variable
+      selectInput("y_variable", "Choose Y-axis Variable", choices = colnames(data)),
+    ),
+    mainPanel(
+      # Boxplot output
+      plotOutput("boxplot"),
+      # Mean values for Attrition = Yes and Attrition = No
+      textOutput("mean_output"),
+      # T-test results table
+      tableOutput("t_test_results"),
+      # Histograms underneath the table
+      plotOutput("histograms")
+    )
+  )
+)
+
+# Define server logic
+server <- function(input, output) {
+  # Create a reactive expression to filter data based on selected Y-axis variable
+  filtered_data <- reactive({
+    data
+  })
+
+  # Generate boxplot based on selected Y-axis variable
+  output$boxplot <- renderPlot({
+    ggplot(filtered_data(), aes(x = Attrition, y = !!sym(input$y_variable), color = Attrition)) +
+      geom_boxplot() +
+      labs(title = paste("Boxplot of", input$y_variable, "by Attrition"),
+           x = "Attrition",
+           y = input$y_variable)
+  })
+
+  # Calculate mean values for Attrition = Yes and Attrition = No
+  output$mean_output <- renderText({
+    mean_yes <- mean(filtered_data()[filtered_data()$Attrition == "Yes", input$y_variable], na.rm = TRUE)
+    mean_no <- mean(filtered_data()[filtered_data()$Attrition == "No", input$y_variable], na.rm = TRUE)
+
+    paste("Mean for Attrition = Yes:", round(mean_yes, 2),
+          "\nMean for Attrition = No:", round(mean_no, 2))
+  })
+
+  # Conduct t-test and display results table
+  output$t_test_results <- renderTable({
+    # Calculate the ratio of standard deviations
+    sd_ratio <- calculate_sd_ratio(filtered_data(), input$y_variable)
+
+    # Decide whether to use var.equal based on the ratio of standard deviations
+    var_equal <- sd_ratio >= 0.5 & sd_ratio <= 2
+
+    # Perform the t-test
+    t_test_result <- t.test(filtered_data()[filtered_data()$Attrition == "Yes", input$y_variable],
+                            filtered_data()[filtered_data()$Attrition == "No", input$y_variable],
+                            var.equal = var_equal)
+
+    result_table <- as.data.frame(cbind(
+      "T-Value" = round(t_test_result$statistic, 3),
+      "Degrees of Freedom" = round(t_test_result$parameter, 0),
+      "P-Value" = format.pval(t_test_result$p.value),
+      "95% Confidence Interval" = paste(round(t_test_result$conf.int[1], 2),
+                                        "-", round(t_test_result$conf.int[2], 2)),
+      "SD Ratio" = round(sd_ratio, 2),
+      "Test Type" = ifelse(var_equal, "Student's T-Test", "Welch's T-Test")
+    ))
+
+    result_table
+  })
+
+  # Generate histograms underneath the table
+  output$histograms <- renderPlot({
+    ggplot(filtered_data(), aes(x = !!sym(input$y_variable), fill = Attrition)) +
+      geom_histogram() +
+      facet_wrap(~Attrition, nrow = 2) +
+      labs(title = paste("Histogram of", input$y_variable, "by Attrition"),
+           x = input$y_variable,
+           y = "Frequency")
+  })
+}
+
+# Run the Shiny app
+shinyApp(ui, server)
+
+```

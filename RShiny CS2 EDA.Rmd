@@ -1,0 +1,53 @@
+---
+title: "RShiny CS2 EDA"
+author: "Max Pagan"
+date: "2023-12-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(shiny)
+library(ggplot2)
+library(dplyr)
+```
+
+```{r shiny}
+data <- read.csv("CaseStudy2-data copy 3.csv")
+data <- data[, !colnames(data) %in% c("Over18")]
+data <- data[, !colnames(data) %in% c("EmployeeCount")]
+data <- data[, !colnames(data) %in% c("StandardHours")]
+#below is code one could use to turn certain data points to factors - commented out for now
+
+#data$JobSatisfaction <- factor(data$JobSatisfaction)
+#data$Education <- factor(data$Education)
+#data$EnvironmentSatisfaction <- factor(data$EnvironmentSatisfaction)
+#data$JobLevel <- factor(data$JobLevel)
+#data$JobInvolvement <- factor(data$JobInvolvement)
+#data$PerformanceRating <- factor(data$PerformanceRating)
+#data$RelationshipSatisfaction <- factor(data$RelationshipSatisfaction)
+#data$StockOptionLevel <- factor(data$StockOptionLevel)
+#data$WorkLifeBalance<- factor(data$WorkLifeBalance)
+# Define UI
+ui <- fluidPage(
+  titlePanel("Scatterplot based on JobRole"),
+  sidebarLayout(
+    sidebarPanel(
+      # Dropdown menu for X-axis variable selection
+      selectInput("x_variable", "Choose X Variable", choices = colnames(data)),
+      # Dropdown menu for Y-axis variable selection
+      selectInput("y_variable", "Choose Y Variable", choices = colnames(data))
+    ),
+    mainPanel(
+      # Scatterplot output with jitter
+      plotOutput("scatterplot")
+    )
+  )
+)
+
+# Define server logic
+server <- function(input, output) {
+  # Create scatterplot based on user input
+  output$scatterplot <- renderPlot({
+    ggplot(data, aes_string(x = input$x_variable, y = input$y_variable, color = "Attrition")) +
+      geom_p
