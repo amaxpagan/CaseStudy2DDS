@@ -9,6 +9,8 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+[Link to YouTube video of presentation](https://youtu.be/znxO6Q0A8sI)
+
 ### Introduction
 
 DDSAnalytics, a company that provides unique data-driven insights to Fortune 100 companies, is attempting to gain a unique advantage over the competition by using data science, statistics, and machine learning techniques to predict attrition, or if an employee will leave their position. This project will aim to predict attrition accurately by first conducting a thorough analysis of the available information to determine which factors contribute the most to attrition. Next, the project aims to create a supervised machine learning model to predict attrition. Finally, the project aims to provide additional insights into other aspects of the data, such as job role specific trends, and another supervised machine learning model to predict an employee’s monthly income with significant accuracy.
@@ -315,6 +317,9 @@ output_data_attrition <- data.frame(ID = no_attrition$ID, Attrition = prediction
 
 # Write the data frame to a CSV file
 write.csv(output_data_attrition, file = "predicted_attrition.csv", row.names = FALSE)
+# Print the confusion matrix
+print("Confusion Matrix:")
+print(conf_matrix)
 ```
 
 
@@ -352,8 +357,83 @@ write.csv(output_data_income, file = "predicted_income.csv", row.names = FALSE)
 
 ### The Most Impactful Factors on Attrition
 
-After analysis, evidence suggests that the three most telling factors of employee attrition are monthly income, job role, and overtime. Monthly income was shown to be significantly impactful when it proved to have a statistically significant difference in means between employees who had left and employees who stayed. While there were other factors thst demonstrated more statistical significance in this area, like job involvement, those factors were much less practically interpretable. Job involvement, for example had only 4 possible outcomes, 1 through 4. While it is true that employees that left are associated with lower job involvement, this difference in means is a fraction. Therefore, if we saw an employee's Job Involvement by itself, we wouldn't be able to strongly interpret what it means for attrition. It is when we combine job involvement with other variables that its predictive power shines through. The next most important factor in determining attrition os job role. With sales representatives having high attrtion rates at 45%, whereas research directors just barely have a rate higher than 1%, this speaks to association between job role and attrition. And finally, the next most important factor in determining attrition is overtime. Employees with overtime have a 31% rate of attrition, compare the the 9.7% rate for employees without overtime. If you want to determine an employee's likelihood of attrtion, based on the data we have, it is incredibly prudent to look at their job role, their income, and their overtime. Runners-up for importance include age and marital status.
+In order to determine the three most impactful variables that impact attrition, I will create naive-bayes models and KNN models with one predictor variable at a time from the list in the existing model, and output an accuracy F1 score to a list. The f1 score of each variable will be ranked, and the three best F1 scores will be selected as the three most imporant variables for predicting attrition.
+```{r F1 calculation}
+library(class)
+# List of variables
+candidate_variables <- c("JobRole","OverTime", "MaritalStatus","BusinessTravel","Age","Gender","JobInvolvement","MonthlyIncome","TotalWorkingYears", "JobLevel", "YearsInCurrentRole","YearsWithCurrManager","YearsAtCompany", "StockOptionLevel","WorkLifeBalance","JobSatisfaction","EnvironmentSatisfaction","DistanceFromHome")
 
+# Initializing dataframe to store results
+variable_performance_1 <- data.frame(Variable = character(), F1_Score = numeric(), stringsAsFactors = FALSE)
+variable_performance_2 <- data.frame(Variable = character(), F1_Score = numeric(), stringsAsFactors = FALSE)
+
+# Loop through each candidate variable
+for (variable in candidate_variables) {
+  # Create a dataset with the current variable
+  current_data <- data[, c("Attrition", variable), drop = FALSE]
+  
+  # Splitting the dataset into training and testing sets
+  set.seed(42)  # Setting seed for reproducibility
+  split_index <- createDataPartition(current_data$Attrition, p = 0.7, list = FALSE)
+  train_data <- current_data[split_index, ]
+  test_data <- current_data[-split_index, ]
+  
+  test_data$Attrition <- as.factor(test_data$Attrition)
+
+  # Train the Naive Bayes model
+  nb_model_2 <- naiveBayes(Attrition ~ ., data = train_data)
+  
+  # Make predictions on the test set
+  predictions <- predict(nb_model_2, newdata = test_data)
+  
+  # Evaluate model performance
+  confusion_matrix <- table(Actual = test_data$Attrition, Predicted = predictions)
+  f1_score <- confusion_matrix[2, 2]/(confusion_matrix[2, 2] + 0.5*(confusion_matrix[2, 1] + confusion_matrix[1, 2]))
+  
+  # Append results to the data frame
+  variable_performance_1 <- rbind(variable_performance_1, c(variable, f1_score))
+}
+
+# Print the results
+print(variable_performance_1)
+
+#no categorical vars this time!
+candidate_variables_2 <- c("Age","JobInvolvement","MonthlyIncome","TotalWorkingYears", "JobLevel", "YearsInCurrentRole","YearsWithCurrManager","YearsAtCompany", "StockOptionLevel","WorkLifeBalance","JobSatisfaction","EnvironmentSatisfaction","DistanceFromHome")
+
+# Loop through each candidate variable
+for (variable in candidate_variables_2) {
+  # Create a dataset with the current variable
+  current_data <- data[, c(variable, "Attrition"), drop = FALSE]
+  
+  # Splitting the dataset into training and testing sets
+  set.seed(42)  # Setting seed for reproducibility
+  split_index <- createDataPartition(current_data$Attrition, p = 0.7, list = FALSE)
+  train_data <- current_data[split_index, ]
+  
+  test_data <- current_data[-split_index, ]
+  
+
+  # Train the Naive Bayes model
+  knn_model_2 <- knn(train = train_data[,-2, drop = FALSE],  # Excluding the target variable 'Attrition'
+                   test = test_data[,-2, drop = FALSE],   # Excluding the target variable 'Attrition'
+                   cl = train_data$Attrition,
+                   k = 5)
+  
+  # Make predictions on the test set
+  predictions <- knn_model_2
+  
+  # Evaluate model performance
+  confusion_matrix <- table(Actual = test_data$Attrition, Predicted = predictions)
+  f1_score <- confusion_matrix[2, 2]/(confusion_matrix[2, 2] + 0.5*(confusion_matrix[2, 1] + confusion_matrix[1, 2]))
+  
+  # Append results to the data frame
+  variable_performance_2 <- rbind(variable_performance_2, c(variable, f1_score))
+}
+
+# Print the results
+print(variable_performance_2)
+```
+Based on the data, it is clear that JobRole, JobInvolvement, and Age, in that order, are the only variables that can create an F1 score of higher than 0. This means that these are the only variables that have predictive power inherently, without the use of other variables. Other variables when used in combination become predictive, however given the inherent predictability of these three variables, DDSAnalytics would benefit greatly from paying careful attention to these specific variables with priority.
 
 ### Conclusion
 
